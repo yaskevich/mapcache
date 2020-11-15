@@ -1,4 +1,5 @@
 'use strict';
+// find . -name '*.png' -exec pngquant -ext .png -force 256 {} \;
 const express = require('express');
 const app = express();
 const fs = require('fs')  
@@ -8,9 +9,14 @@ const bodyParser = require('body-parser');
 const morgan = require('morgan')
 const loki = require('lokijs')
 const port = 3111;
+app.disable('x-powered-by');
 app.use(express.static('maps'))
 // app.use(morgan('combined'));
-var db = new loki('quickstart.db', {
+
+const emptyTileRelPath = '/maps/empty.png';
+const emptyTileFullPath = path.join(__dirname, emptyTileRelPath);
+
+const db = new loki('quickstart.db', {
     autoload: true,
     autoloadCallback : databaseInitialize,
     autosave: true, 
@@ -19,7 +25,7 @@ var db = new loki('quickstart.db', {
 
 // implement the autoloadback referenced in loki constructor
 function databaseInitialize() {
-  var entries = db.getCollection("entries");
+  let entries = db.getCollection("entries");
   if (entries === null) {
     entries = db.addCollection("entries");
   }
@@ -29,7 +35,7 @@ function databaseInitialize() {
 
 // example method with any bootstrap logic to run after database initialized
 function runProgramLogic() {
-  var entryCount = db.getCollection("entries").count();
+  let entryCount = db.getCollection("entries").count();
   console.log("number of entries in database : " + entryCount);
 }
 
@@ -38,20 +44,22 @@ app.all('/map/:num/:zoom/:x/:y.:type', function(req, res){
 	// console.log(ps);
 	// http://demo.allmapsonline.com/maps/3/dtiles/14/14_9287_5566.png
 	let url = 'http://demo.allmapsonline.com/maps/' + ps.num + '/dtiles/'+ps.zoom+'/'+ps.zoom+"_"+ps.x+"_"+ps.y+'.'+ps.type;
-	let locl  = '/maps/' + ps.num + '/'+ps.zoom+'/'+ps.x+"/"+ps.y+'.'+ps.type;
+	let scope  = '/maps/lviv/';
+	let pathRelTile  =  scope + ps.num + '/'+ps.zoom+'/'+ps.x+"/"+ps.y+'.'+ps.type;
 	// console.log(url);
+	res.setHeader('Cache-Control', 'max-age=31536000');
 	var dbres = db.getCollection("entries").find({ url :url });
 	if (dbres.length > 0){
 		// console.log(dbres);
-		console.log("Not covered:", locl);
-		res.sendFile(path.join(__dirname, '/maps/empty.png'));
+		console.log("Not covered:", pathRelTile);
+		res.sendFile(emptyTileFullPath);
 		return;
 	}
-	let the_path  = path.join(__dirname, locl);
+	let pathFullLocalTile  = path.join(__dirname, pathRelTile);
 	
-	if (fs.existsSync(the_path) == true) {
-		console.log("Cached:", locl);
-		res.sendFile(the_path);
+	if (fs.existsSync(pathFullLocalTile) == true) {
+		console.log("Cached:", pathRelTile);
+		res.sendFile(pathFullLocalTile);
 	} else {
 		axios
 		.request({
@@ -62,16 +70,16 @@ app.all('/map/:num/:zoom/:x/:y.:type', function(req, res){
 		  timeout: 1000
 		})
 		.then(function (result) {
-			['/maps/' + ps.num, '/maps/' + ps.num+ '/'+ps.zoom, '/maps/' + ps.num+ '/'+ps.zoom+'/'+ps.x]
+			[scope + ps.num, scope + ps.num+ '/'+ps.zoom, scope + ps.num+ '/'+ps.zoom+'/'+ps.x]
 			.map(x => path.join(__dirname, x))
 			.map(y => !fs.existsSync(y)?fs.mkdirSync(y):null);
 			
-			result.data.pipe(fs.createWriteStream(the_path));
+			result.data.pipe(fs.createWriteStream(pathFullLocalTile));
 			// return a promise and resolve when download finishes
 			return new Promise((resolve, reject) => {
 				result.data.on('end', () => {
-					console.log("Written:", locl);
-					res.sendFile(the_path);
+					console.log("Written:", pathRelTile);
+					res.sendFile(pathFullLocalTile);
 				  resolve()
 				})
 				result.data.on('error', () => {
@@ -80,12 +88,16 @@ app.all('/map/:num/:zoom/:x/:y.:type', function(req, res){
 				})
 			})
 		}).catch (function (e) {
-			console.log("external get error: " + e.response.status, url);
-			db.getCollection("entries").insert({url});			
-			res.sendFile(path.join(__dirname, '/maps/empty.png'));
+			if(e) {
+				console.log("ext error status:", e.response.status, url);
+				db.getCollection("entries").insert({url});			
+			} else {
+				console.log("error with error", url);
+			}
+			res.sendFile(emptyTileFullPath);
 		});
 	}
-	// let webpath = "http://lviv.datamap.by" + locl;
+	// let webpath = "http://lviv.datamap.by" + pathRelTile;
 	// console.log(webpath);
 	// res.status(200).send(webpath);
 	
