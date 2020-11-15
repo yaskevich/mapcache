@@ -1,3 +1,5 @@
+quickstart.db
+package-lock.json
 # Logs
 logs
 *.log

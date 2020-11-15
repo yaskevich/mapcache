@@ -1,0 +1,22 @@
+{
+  "name": "mapcache",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "bluebird": "3.5",
+    "body-parser": "^1.13.2",
+    "cache-manager": "^2.9.0",
+    "cache-manager-fs-binary": "^1.0.4",
+    "cookie-parser": "^1.3.5",
+    "express": "^4.15.3",
+    "lokijs": "^1.5.5",
+    "morgan": "^1.9.0"
+  }
+}
